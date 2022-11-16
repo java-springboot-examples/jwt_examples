@@ -2,6 +2,8 @@ package jwt.verification;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.source.DefaultJWKSetCache;
+import com.nimbusds.jose.jwk.source.JWKSetCache;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.jwk.source.RemoteJWKSet;
 import com.nimbusds.jose.proc.BadJOSEException;
@@ -16,6 +18,7 @@ import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.ParseException;
+import java.util.concurrent.TimeUnit;
 
 public class NimbusSigVerifyDemo {
 
@@ -28,15 +31,22 @@ public class NimbusSigVerifyDemo {
 
             DefaultJWTProcessor<SecurityContext> jwtProcessor = new DefaultJWTProcessor<>();
 
-            JWKSource<SecurityContext> keySource = new RemoteJWKSet<>(new URL("https://login.microsoftonline.com/common/discovery/keys"));
+            URL jwksUrl = new URL("https://login.microsoftonline.com/common/discovery/keys");
+            long cacheLifespan = 500;
+            long refreshTime = 400;
+            JWKSetCache jwkSetCache = new DefaultJWKSetCache(cacheLifespan, refreshTime, TimeUnit.MINUTES);
+
+            JWKSource<SecurityContext> keySource = new RemoteJWKSet<>(jwksUrl, null, jwkSetCache);
 
             JWSAlgorithm expectedJWSAlg = (JWSAlgorithm) jwt.getHeader().getAlgorithm();
             JWSKeySelector<SecurityContext> keySelector = new JWSVerificationKeySelector<>(expectedJWSAlg, keySource);
             jwtProcessor.setJWSKeySelector(keySelector);
 
             try {
-                JWTClaimsSet claimsSet = jwtProcessor.process(jwt, null);
-                System.out.println(claimsSet.toJSONObject());
+                for (int i=0;i<3;i++) {
+                    JWTClaimsSet claimsSet = jwtProcessor.process(jwt, null);
+                    System.out.println(claimsSet.toJSONObject());
+                }
             } catch (BadJOSEException | JOSEException e) {
                 e.printStackTrace();
             }
